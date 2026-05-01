@@ -207,7 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function saveVisitedGminy() {
         localStorage.setItem('hexplorer_visited_gminy', JSON.stringify(Array.from(visitedGminy)));
-        uiGminyCount.textContent = visitedGminy.size;
+        uiGminyCount.textContent = `${visitedGminy.size} / 2477`;
     }
 
     async function fetchGminyData() {
@@ -1111,7 +1111,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inicjalizacja interfejsu
     updateStravaBtnState();
     uiSquareCount.textContent = exploredSquares.size;
-    uiGminyCount.textContent = visitedGminy.size;
+    uiGminyCount.textContent = `${visitedGminy.size} / 2477`;
     redrawAllSquares();
     drawAllRoutes();
     drawBackgroundGrid();
