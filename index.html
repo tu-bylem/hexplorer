@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hexplorer - Zdobądź Świat</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="ui-overlay">
+        <div id="stats-panel">
+            <h2>Hexplorer</h2>
+            <p>Odkryte kwadraty: <span id="square-count">0</span></p>
+                <button id="start-btn">Rozpocznij śledzenie</button>
+                <button id="upload-btn">Wgraj trasę (GPX/TCX)</button>
+                <input type="file" id="data-upload" accept=".gpx, .tcx, .json" style="display: none;">
+                <button id="strava-btn" style="background-color: #fc4c02; color: white;">Połącz ze Strava</button>
+                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                    <button id="export-btn" style="flex: 1; background-color: #3b82f6; color: white;">Eksportuj</button>
+                    <button id="import-btn" style="flex: 1; background-color: #3b82f6; color: white;">Importuj</button>
+                    <input type="file" id="import-upload" accept=".json" style="display: none;">
+                </div>
+                <button id="reset-btn" style="margin-top: 5px;">Resetuj</button>
+            </div>
+            <p id="status-msg">Gotowy. Naciśnij przycisk, by rozpocząć.</p>
+        </div>
+    </div>
+
+    <!-- Panel Szczegółów Trasy -->
+    <div id="route-details" class="hidden">
+        <button id="route-details-close">×</button>
+        <h3 id="route-details-name">Nazwa Trasy</h3>
+        <p><strong>Źródło:</strong> <span id="route-details-source">-</span></p>
+        <p><strong>Data:</strong> <span id="route-details-date">-</span></p>
+        <p><strong>Dystans:</strong> <span id="route-details-distance">-</span> km</p>
+    </div>
+
+    <!-- Modal Strava -->
+    <div id="strava-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Konfiguracja Strava API</h3>
+            <p>Aby połączyć aplikację ze Stravą, musisz utworzyć aplikację API na swoim koncie.</p>
+            <ol>
+                <li>Wejdź na <a href="https://www.strava.com/settings/api" target="_blank" style="color: #4ade80;">strava.com/settings/api</a></li>
+                <li>Utwórz aplikację (Jako <b>Authorization Callback Domain</b> wpisz <b style="color: #fc4c02;">localhost</b> lub <b style="color: #fc4c02;">127.0.0.1</b>)</li>
+                <li>Skopiuj i wklej poniżej swoje dane:</li>
+            </ol>
+            <input type="text" id="strava-client-id" placeholder="Client ID">
+            <input type="password" id="strava-client-secret" placeholder="Client Secret">
+            <div class="buttons" style="margin-top: 15px;">
+                <button id="strava-save-btn" style="background-color: #fc4c02; color: white;">Zapisz i Połącz</button>
+                <button id="strava-cancel-btn">Anuluj</button>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
