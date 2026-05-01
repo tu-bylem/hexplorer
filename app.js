@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inicjalizacja mapy Leaflet
     const map = L.map('map', {
         zoomControl: false // Wyłączamy domyślny kontroler, żeby ui-overlay lepiej wyglądał, można go potem przywrócić
-    }).setView([52.2297, 21.0122], 16); // Domyślnie Warszawa (lub inna lokalizacja)
+    }).setView([49.5733, 21.7936], 13); // Domyślnie Iwonicz-Zdrój
 
     // Jasny styl mapy z CartoDB
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
