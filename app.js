@@ -151,6 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const routeDetailsClose = document.getElementById('route-details-close');
     let activePolyline = null;
     
+    // Nowe elementy listy aktywności
+    const activitiesBtn = document.getElementById('activities-btn');
+    const activitiesPanel = document.getElementById('activities-panel');
+    const activitiesClose = document.getElementById('activities-close');
+    const activitiesList = document.getElementById('activities-list');
+    const routePolylines = {}; // Przechowuje referencje do obiektów L.polyline po ID
+    
     routeDetailsClose.addEventListener('click', () => {
         routeDetailsPanel.classList.add('hidden');
         if (activePolyline) {
@@ -161,10 +168,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     map.on('click', () => {
         routeDetailsPanel.classList.add('hidden');
+        activitiesPanel.classList.add('hidden');
         if (activePolyline) {
             activePolyline.setStyle({ color: '#f97316', weight: 3, zIndexOffset: 0 });
             activePolyline = null;
         }
+    });
+
+    activitiesBtn.addEventListener('click', () => {
+        activitiesPanel.classList.toggle('hidden');
+        if (!activitiesPanel.classList.contains('hidden')) {
+            updateActivitiesList();
+        }
+    });
+
+    activitiesClose.addEventListener('click', () => {
+        activitiesPanel.classList.add('hidden');
     });
 
     function calculateTotalDistance(points) {
@@ -221,25 +240,74 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function drawAllRoutes() {
         routesLayerGroup.clearLayers();
+        // Czyścimy też stare referencje polylinii
+        for (let id in routePolylines) delete routePolylines[id];
+
         savedRoutes.forEach(routeObj => {
             const points = decodePolyline(routeObj.polyline);
             const pl = L.polyline(points, { color: '#f97316', weight: 3, opacity: 0.6 }).addTo(routesLayerGroup);
             
+            // Zapisujemy referencję
+            routePolylines[routeObj.id] = pl;
+
             pl.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
-                if (activePolyline) {
-                    activePolyline.setStyle({ color: '#f97316', weight: 3, zIndexOffset: 0 });
-                }
-                activePolyline = pl;
-                pl.setStyle({ color: '#3b82f6', weight: 5, zIndexOffset: 100 });
-                pl.bringToFront();
-                
-                routeDetailsName.textContent = routeObj.name;
-                routeDetailsSource.textContent = routeObj.source;
-                routeDetailsDate.textContent = routeObj.date || '-';
-                routeDetailsDistance.textContent = routeObj.distance ? (routeObj.distance / 1000).toFixed(2) : '-';
-                routeDetailsPanel.classList.remove('hidden');
+                selectRoute(routeObj, pl);
             });
+        });
+        updateActivitiesList();
+    }
+
+    function selectRoute(routeObj, pl) {
+        if (activePolyline) {
+            activePolyline.setStyle({ color: '#f97316', weight: 3, zIndexOffset: 0 });
+        }
+        activePolyline = pl;
+        pl.setStyle({ color: '#3b82f6', weight: 5, zIndexOffset: 100 });
+        pl.bringToFront();
+        
+        routeDetailsName.textContent = routeObj.name;
+        routeDetailsSource.textContent = routeObj.source;
+        routeDetailsDate.textContent = routeObj.date || '-';
+        routeDetailsDistance.textContent = routeObj.distance ? (routeObj.distance / 1000).toFixed(2) : '-';
+        routeDetailsPanel.classList.remove('hidden');
+
+        // Automatyczne zbliżenie do trasy
+        map.fitBounds(pl.getBounds(), { padding: [50, 50] });
+    }
+
+    function updateActivitiesList() {
+        if (!activitiesList) return;
+        activitiesList.innerHTML = '';
+
+        // Sortujemy od najnowszych
+        const sortedRoutes = [...savedRoutes].reverse();
+
+        sortedRoutes.forEach(route => {
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            
+            const dist = route.distance ? (route.distance / 1000).toFixed(2) : '0.00';
+            
+            item.innerHTML = `
+                <h4>${route.name}</h4>
+                <div class="activity-meta">
+                    <p>${route.date} • ${route.source}</p>
+                    <p><strong>${dist} km</strong></p>
+                </div>
+            `;
+
+            item.addEventListener('click', () => {
+                const pl = routePolylines[route.id];
+                if (pl) {
+                    selectRoute(route, pl);
+                    if (window.innerWidth < 640) {
+                        activitiesPanel.classList.add('hidden');
+                    }
+                }
+            });
+
+            activitiesList.appendChild(item);
         });
     }
 

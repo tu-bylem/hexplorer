@@ -23,9 +23,21 @@
                     <button id="import-btn" style="flex: 1; background-color: #3b82f6; color: white;">Importuj</button>
                     <input type="file" id="import-upload" accept=".json" style="display: none;">
                 </div>
+                <button id="activities-btn" style="background-color: #3b82f6; color: white;">Moje Aktywności</button>
                 <button id="reset-btn" style="margin-top: 5px;">Resetuj</button>
             </div>
             <p id="status-msg">Gotowy. Naciśnij przycisk, by rozpocząć.</p>
+        </div>
+    </div>
+
+    <!-- Panel Listy Aktywności -->
+    <div id="activities-panel" class="hidden">
+        <div class="activities-header">
+            <h3>Twoje Aktywności</h3>
+            <button id="activities-close">×</button>
+        </div>
+        <div id="activities-list">
+            <!-- Tutaj będą trafiać elementy listy -->
         </div>
     </div>
 
