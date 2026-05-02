@@ -42,8 +42,9 @@ document.addEventListener("DOMContentLoaded", () => {
         maxZoom: 20
     }).addTo(map);
 
-    let watchId = null;
     let isTracking = false;
+    let isPaused = false;
+    let watchId = null;
     let currentSquare = null;
 
     // Wczytanie z localStorage
@@ -130,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // UI Elements
     const uiSquareCount = document.getElementById('square-count');
     const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const resetBtn = document.getElementById('reset-btn');
     const statusMsg = document.getElementById('status-msg');
     const uploadBtn = document.getElementById('upload-btn');
@@ -672,13 +674,22 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         isTracking = true;
-        startBtn.textContent = "Zatrzymaj";
+        isPaused = false;
+        startBtn.textContent = "Pauza";
+        startBtn.style.background = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Pomarańczowy dla pauzy
+        stopBtn.style.display = "block";
         statusMsg.textContent = "Oczekiwanie na sygnał GPS...";
 
         // Aktywuj mechanizmy tła
         requestWakeLock();
         if (silentAudio) silentAudio.play().catch(e => console.warn("Audio play failed", e));
 
+        activateGeolocation();
+    }
+
+    function activateGeolocation() {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        
         watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 statusMsg.textContent = "Śledzenie aktywne (GPS OK)";
@@ -695,10 +706,54 @@ document.addEventListener("DOMContentLoaded", () => {
         );
     }
 
+    function pauseTracking() {
+        isPaused = true;
+        startBtn.textContent = "Wznów";
+        startBtn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Zielony dla wznowienia
+        statusMsg.textContent = "Śledzenie wstrzymane.";
+        
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+    }
+
+    function resumeTracking() {
+        isPaused = false;
+        startBtn.textContent = "Pauza";
+        startBtn.style.background = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)";
+        statusMsg.textContent = "Wznawianie...";
+        activateGeolocation();
+    }
+
     function stopTracking() {
+        const confirmSave = confirm("Czy chcesz zapisać tę aktywność?\n\n[OK] - Zapisz trasę\n[Anuluj] - Odrzuć trasę (kwadraty zostaną zachowane)");
+        
+        if (confirmSave) {
+            if (userPath.length > 0) {
+                const dist = calculateTotalDistance(userPath);
+                savedRoutes.push({
+                    id: 'live_' + Date.now(),
+                    name: 'Trasa z aplikacji',
+                    source: 'Aplikacja',
+                    distance: dist,
+                    date: new Date().toLocaleDateString(),
+                    polyline: encodePolyline(userPath)
+                });
+                saveRoutes();
+                drawAllRoutes();
+                statusMsg.textContent = "Zapisano aktywność.";
+            }
+        } else {
+            statusMsg.textContent = "Odrzucono trasę.";
+        }
+
+        // Czyścimy wszystko niezależnie od decyzji o zapisie trasy
         isTracking = false;
+        isPaused = false;
         startBtn.textContent = "Rozpocznij śledzenie";
-        statusMsg.textContent = "Zatrzymano.";
+        startBtn.style.background = ""; // Powrót do domyślnego
+        stopBtn.style.display = "none";
 
         // Zwolnij mechanizmy tła
         if (wakeLock) {
@@ -713,22 +768,9 @@ document.addEventListener("DOMContentLoaded", () => {
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
         }
-        if (userPath.length > 0) {
-            const dist = calculateTotalDistance(userPath);
-            savedRoutes.push({
-                id: 'live_' + Date.now(),
-                name: 'Trasa z aplikacji',
-                source: 'Aplikacja',
-                distance: dist,
-                date: new Date().toLocaleDateString(),
-                polyline: encodePolyline(userPath)
-            });
-            saveRoutes();
-            drawAllRoutes();
-            userPath.length = 0;
-            pathPolyline.setLatLngs([]);
-        }
-        
+
+        userPath.length = 0;
+        pathPolyline.setLatLngs([]);
         sessionSquares.clear();
         redrawAllSquares();
     }
@@ -742,11 +784,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Zdarzenia przycisków
     startBtn.addEventListener('click', () => {
-        if (isTracking) {
-            stopTracking();
-        } else {
+        if (!isTracking) {
             startTracking();
+        } else if (isPaused) {
+            resumeTracking();
+        } else {
+            pauseTracking();
         }
+    });
+
+    stopBtn.addEventListener('click', () => {
+        stopTracking();
     });
 
     resetBtn.addEventListener('click', () => {

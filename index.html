@@ -18,7 +18,10 @@
             <p>Odkryte kwadraty: <span id="square-count">0</span></p>
             <p>Odwiedzone gminy: <span id="gminy-count">0</span></p>
                 <button id="gminy-btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); margin-bottom: 10px;">GMINY POLSKA</button>
-                <button id="start-btn">Rozpocznij śledzenie</button>
+                <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                    <button id="start-btn">Rozpocznij śledzenie</button>
+                    <button id="stop-btn" style="display: none; background-color: #ef4444; flex: 0.5;">Zakończ</button>
+                </div>
                 <button id="upload-btn">Wgraj trasę (GPX/TCX)</button>
                 <input type="file" id="data-upload" accept=".gpx, .tcx, .json" style="display: none;">
                 <button id="strava-btn" style="background-color: #fc4c02; color: white;">Połącz ze Strava</button>
