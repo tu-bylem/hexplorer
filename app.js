@@ -218,21 +218,82 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchGminyData() {
         if (gminyGeoJSON) return gminyGeoJSON;
-        statusMsg.textContent = "Pobieranie granic gmin...";
+        
+        // 1. Spróbuj pobrać z IndexedDB
         try {
-            const response = await fetch('https://raw.githubusercontent.com/jusuff/PolandGeoJson/main/data/poland.municipalities.json');
+            gminyGeoJSON = await getGminyFromDB();
+            if (gminyGeoJSON) {
+                statusMsg.textContent = "Wczytano granice gmin z pamięci lokalnej.";
+                recalculateAllActivitiesGminy();
+                return gminyGeoJSON;
+            }
+        } catch (err) {
+            console.warn("Błąd IndexedDB:", err);
+        }
+
+        statusMsg.textContent = "Pobieranie granic gmin (pierwszy raz)...";
+        try {
+            const response = await fetch('gminy.json');
             gminyGeoJSON = await response.json();
+            
+            // 2. Zapisz w IndexedDB na przyszłość
+            try {
+                await saveGminyToDB(gminyGeoJSON);
+            } catch (err) {
+                console.warn("Nie udało się zapisać w IndexedDB:", err);
+            }
+
             statusMsg.textContent = "Wczytano granice gmin.";
-            
-            // Po wczytaniu danych, przelicz wszystkie istniejące trasy
             recalculateAllActivitiesGminy();
-            
             return gminyGeoJSON;
         } catch (err) {
             statusMsg.textContent = "Błąd pobierania granic gmin.";
             console.error(err);
             return null;
         }
+    }
+
+    // Helpery do IndexedDB
+    function getGminyFromDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open("HexplorerDB", 1);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains("cache")) {
+                    db.createObjectStore("cache");
+                }
+            };
+            request.onsuccess = (e) => {
+                const db = e.target.result;
+                const transaction = db.transaction("cache", "readonly");
+                const store = transaction.objectStore("cache");
+                const getReq = store.get("gminy_geojson");
+                getReq.onsuccess = () => resolve(getReq.result);
+                getReq.onerror = () => reject(getReq.error);
+            };
+            request.onerror = (e) => reject(request.error);
+        });
+    }
+
+    function saveGminyToDB(data) {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open("HexplorerDB", 1);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains("cache")) {
+                    db.createObjectStore("cache");
+                }
+            };
+            request.onsuccess = (e) => {
+                const db = e.target.result;
+                const transaction = db.transaction("cache", "readwrite");
+                const store = transaction.objectStore("cache");
+                const putReq = store.put(data, "gminy_geojson");
+                putReq.onsuccess = () => resolve();
+                putReq.onerror = () => reject(putReq.error);
+            };
+            request.onerror = (e) => reject(request.error);
+        });
     }
 
     function recalculateAllActivitiesGminy() {
