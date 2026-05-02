@@ -494,11 +494,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const boundary = getSquareBounds(squareIndex);
 
         const polygon = L.polygon(boundary, {
-            color: isCurrent ? '#f8fafc' : '#3b82f6', // Ramka kwadratu
-            weight: isCurrent ? 3 : 1,
-            opacity: isCurrent ? 1 : 0.3, // Przezroczystość obramowania (mniej widoczne linie)
+            stroke: isCurrent, // Rysuj obramowanie tylko dla obecnego kwadratu
+            color: '#f8fafc', 
+            weight: 3,
+            opacity: 1,
             fillColor: isCurrent ? '#4ade80' : '#3b82f6', // Wypełnienie
-            fillOpacity: isCurrent ? 0.6 : 0.2 // Delikatniejsze wypełnienie
+            fillOpacity: isCurrent ? 0.6 : 0.3 // Delikatnie zwiększona widoczność dla lepszego efektu "plamy"
         });
 
         squareLayerGroup.addLayer(polygon);
