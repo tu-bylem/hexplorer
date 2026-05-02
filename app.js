@@ -490,16 +490,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const sessionSquares = new Set();
+
     function drawSquare(squareIndex, isCurrent) {
         const boundary = getSquareBounds(squareIndex);
+        const isSession = sessionSquares.has(squareIndex);
 
         const polygon = L.polygon(boundary, {
             stroke: isCurrent, // Rysuj obramowanie tylko dla obecnego kwadratu
             color: '#f8fafc', 
             weight: 3,
             opacity: 1,
-            fillColor: isCurrent ? '#4ade80' : '#93c5fd', // Jeszcze jaśniejszy niebieski
-            fillOpacity: isCurrent ? 0.6 : 0.4 
+            fillColor: (isCurrent || isSession) ? '#4ade80' : '#93c5fd', // Zielony dla obecnego i zdobytych w tej sesji
+            fillOpacity: (isCurrent || isSession) ? 0.6 : 0.4 
         });
 
         squareLayerGroup.addLayer(polygon);
@@ -509,14 +512,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function redrawAllSquares() {
         squareLayerGroup.clearLayers();
 
-        // Rysuj odwiedzone (z wyjątkiem obecnego, zeby narysowac go na koncu)
+        // Rysuj wszystkie odkryte kwadraty
         exploredSquares.forEach(sq => {
             if (sq !== currentSquare) {
                 drawSquare(sq, false);
             }
         });
 
-        // Obecny kwadrat rysujemy z innym stylem (wyróżniony)
+        // Obecny kwadrat na końcu
         if (currentSquare) {
             drawSquare(currentSquare, true);
         }
@@ -619,6 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const interpLat = lastPt[0] + (lat - lastPt[0]) * fraction;
                 const interpLng = lastPt[1] + (lng - lastPt[1]) * fraction;
                 const sqIdx = getSquareIndex(interpLat, interpLng);
+                if (isTracking) sessionSquares.add(sqIdx); 
                 if (!exploredSquares.has(sqIdx)) {
                     exploredSquares.add(sqIdx);
                     hasNew = true;
@@ -632,6 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (checkPointInGminy(lat, lng)) saveVisitedGminy();
         } else {
             const squareIndex = getSquareIndex(lat, lng);
+            if (isTracking) sessionSquares.add(squareIndex);
             if (currentSquare !== squareIndex) {
                 currentSquare = squareIndex;
                 if (!exploredSquares.has(squareIndex)) {
@@ -723,6 +728,9 @@ document.addEventListener("DOMContentLoaded", () => {
             userPath.length = 0;
             pathPolyline.setLatLngs([]);
         }
+        
+        sessionSquares.clear();
+        redrawAllSquares();
     }
 
     // Obsługa powrotu do aplikacji (re-aktywacja Wake Lock)
@@ -744,6 +752,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resetBtn.addEventListener('click', () => {
         if (confirm("Czy na pewno chcesz zresetować wszystkie odkryte tereny i trasę?")) {
             exploredSquares.clear();
+            sessionSquares.clear();
             visitedGminy.clear();
             userPath.length = 0;
             pathPolyline.setLatLngs([]);
