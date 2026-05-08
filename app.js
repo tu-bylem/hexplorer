@@ -1148,7 +1148,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inicjalizacja interfejsu
     updateStravaBtnState();
     uiSquareCount.textContent = exploredSquares.size;
-    uiGminyCount.textContent = `${visitedGminy.size} / 2477`;
     redrawAllSquares();
     drawAllRoutes();
     drawBackgroundGrid();
