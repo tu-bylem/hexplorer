@@ -49,10 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Wczytanie z localStorage
     const exploredSquares = new Set(JSON.parse(localStorage.getItem('hexplorer_explored_squares') || '[]'));
-    const visitedGminy = new Set(JSON.parse(localStorage.getItem('hexplorer_visited_gminy') || '[]'));
     const savedRoutes = JSON.parse(localStorage.getItem('hexplorer_routes') || '[]');
-    let gminyGeoJSON = null;
-    let isGminyMode = false;
 
     // Migracja wsteczna: zamiana stringów na obiekty
     for (let i = 0; i < savedRoutes.length; i++) {
@@ -71,7 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Grupy warstw, aby łatwo je czyścić
     const gridLayerGroup = L.layerGroup().addTo(map);
     const squareLayerGroup = L.layerGroup().addTo(map);
-    const gminyLayerGroup = L.layerGroup(); // Not added to map yet
     const routesLayerGroup = L.layerGroup().addTo(map);
     const pathLayerGroup = L.layerGroup().addTo(map);
 
@@ -126,8 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
         iconAnchor: [18, 18]
     });
 
-    let userMarker = null;
-
     // UI Elements
     const uiSquareCount = document.getElementById('square-count');
     const startBtn = document.getElementById('start-btn');
@@ -136,8 +130,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusMsg = document.getElementById('status-msg');
     const uploadBtn = document.getElementById('upload-btn');
     const dataUpload = document.getElementById('data-upload');
-    const gminyBtn = document.getElementById('gminy-btn');
-    const uiGminyCount = document.getElementById('gminy-count');
 
     // Strava elements
     const stravaBtn = document.getElementById('strava-btn');
@@ -222,176 +214,10 @@ document.addEventListener("DOMContentLoaded", () => {
         uiSquareCount.textContent = exploredSquares.size;
     }
 
-    function saveVisitedGminy() {
-        localStorage.setItem('hexplorer_visited_gminy', JSON.stringify(Array.from(visitedGminy)));
-        uiGminyCount.textContent = `${visitedGminy.size} / 2477`;
-    }
-
-    async function fetchGminyData() {
-        if (gminyGeoJSON) return gminyGeoJSON;
-        
-        // 1. Spróbuj pobrać z IndexedDB
-        try {
-            gminyGeoJSON = await getGminyFromDB();
-            if (gminyGeoJSON) {
-                statusMsg.textContent = "Wczytano granice gmin z pamięci lokalnej.";
-                recalculateAllActivitiesGminy();
-                return gminyGeoJSON;
-            }
-        } catch (err) {
-            console.warn("Błąd IndexedDB:", err);
-        }
-
-        statusMsg.textContent = "Pobieranie granic gmin (pierwszy raz)...";
-        try {
-            const response = await fetch('gminy.json');
-            gminyGeoJSON = await response.json();
-            
-            // 2. Zapisz w IndexedDB na przyszłość
-            try {
-                await saveGminyToDB(gminyGeoJSON);
-            } catch (err) {
-                console.warn("Nie udało się zapisać w IndexedDB:", err);
-            }
-
-            statusMsg.textContent = "Wczytano granice gmin.";
-            recalculateAllActivitiesGminy();
-            return gminyGeoJSON;
-        } catch (err) {
-            statusMsg.textContent = "Błąd pobierania granic gmin.";
-            console.error(err);
-            return null;
-        }
-    }
-
-    // Helpery do IndexedDB
-    function getGminyFromDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open("HexplorerDB", 1);
-            request.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains("cache")) {
-                    db.createObjectStore("cache");
-                }
-            };
-            request.onsuccess = (e) => {
-                const db = e.target.result;
-                const transaction = db.transaction("cache", "readonly");
-                const store = transaction.objectStore("cache");
-                const getReq = store.get("gminy_geojson");
-                getReq.onsuccess = () => resolve(getReq.result);
-                getReq.onerror = () => reject(getReq.error);
-            };
-            request.onerror = (e) => reject(request.error);
-        });
-    }
-
-    function saveGminyToDB(data) {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open("HexplorerDB", 1);
-            request.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains("cache")) {
-                    db.createObjectStore("cache");
-                }
-            };
-            request.onsuccess = (e) => {
-                const db = e.target.result;
-                const transaction = db.transaction("cache", "readwrite");
-                const store = transaction.objectStore("cache");
-                const putReq = store.put(data, "gminy_geojson");
-                putReq.onsuccess = () => resolve();
-                putReq.onerror = () => reject(putReq.error);
-            };
-            request.onerror = (e) => reject(request.error);
-        });
-    }
-
-    function recalculateAllActivitiesGminy() {
-        if (!gminyGeoJSON || savedRoutes.length === 0) return;
-        
-        statusMsg.textContent = "Aktualizowanie statystyk gmin dla wszystkich tras...";
-        let totalProcessed = 0;
-        
-        savedRoutes.forEach(route => {
-            const points = decodePolyline(route.polyline);
-            if (points.length > 0) {
-                checkPathInGminy(points);
-                totalProcessed++;
-            }
-        });
-        
-        saveVisitedGminy();
-        if (isGminyMode) drawGminyLayer();
-        statusMsg.textContent = `Zaktualizowano gminy dla ${totalProcessed} tras.`;
-    }
-
-    // Prosty algorytm Point-in-Polygon (Ray Casting)
-    function isPointInPolygon(point, polygon) {
-        const x = point[1], y = point[0]; // Leaflet [lat, lng] -> [lng, lat] for GeoJSON logic
-        let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i][0], yi = polygon[i][1];
-            const xj = polygon[j][0], yj = polygon[j][1];
-            const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    }
-
-    function checkPointInGminy(lat, lng) {
-        if (!gminyGeoJSON) return;
-        
-        for (const feature of gminyGeoJSON.features) {
-            const coords = feature.geometry.coordinates;
-            const type = feature.geometry.type;
-            
-            if (type === "Polygon") {
-                if (isPointInPolygon([lat, lng], coords[0])) {
-                    if (!visitedGminy.has(feature.properties.terc)) {
-                        visitedGminy.add(feature.properties.terc);
-                        return true;
-                    }
-                    return false;
-                }
-            } else if (type === "MultiPolygon") {
-                for (const poly of coords) {
-                    if (isPointInPolygon([lat, lng], poly[0])) {
-                        if (!visitedGminy.has(feature.properties.terc)) {
-                            visitedGminy.add(feature.properties.terc);
-                            return true;
-                        }
-                        return false;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    function checkPathInGminy(points) {
-        if (!gminyGeoJSON || points.length === 0) return 0;
-        let newGminy = 0;
-        
-        // Optymalizacja: sprawdzamy co jakiś czas, gminy są duże
-        // Ale dla pewności sprawdzimy co 500m lub punkty trasy
-        for (let i = 0; i < points.length; i++) {
-            if (checkPointInGminy(points[i][0], points[i][1])) {
-                newGminy++;
-            }
-            // Skip points to speed up (gminy are large)
-            i += 5; 
-        }
-        if (newGminy > 0) saveVisitedGminy();
-        return newGminy;
-    }
 
     function addSquaresAlongPath(points) {
         let newCount = 0;
         if (points.length === 0) return 0;
-        
-        // Sprawdź gminy
-        checkPathInGminy(points);
 
         let sq = getSquareIndex(points[0][0], points[0][1]);
         if (!exploredSquares.has(sq)) {
@@ -447,7 +273,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         updateActivitiesList();
     }
-
     function selectRoute(routeObj, pl) {
         if (activePolyline) {
             activePolyline.setStyle({ color: '#f97316', weight: 3, zIndexOffset: 0 });
@@ -536,61 +361,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function drawGminyLayer() {
-        gminyLayerGroup.clearLayers();
-        if (!gminyGeoJSON) return;
-
-        L.geoJSON(gminyGeoJSON, {
-            style: (feature) => {
-                const visited = visitedGminy.has(feature.properties.terc);
-                return {
-                    color: visited ? '#1e40af' : '#94a3b8',
-                    weight: visited ? 2 : 1,
-                    opacity: visited ? 0.8 : 0.4,
-                    fillColor: visited ? '#3b82f6' : '#cbd5e1',
-                    fillOpacity: visited ? 0.5 : 0.1
-                };
-            },
-            onEachFeature: (feature, layer) => {
-                layer.bindPopup(`Gmina: ${feature.properties.name}<br>Kod TERC: ${feature.properties.terc}`);
-            }
-        }).addTo(gminyLayerGroup);
-    }
-
-    async function toggleGminyView() {
-        isGminyMode = !isGminyMode;
-        
-        if (isGminyMode) {
-            gminyBtn.textContent = "POWRÓT DO KWADRATÓW";
-            gminyBtn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
-            
-            gridLayerGroup.remove();
-            squareLayerGroup.remove();
-            gminyLayerGroup.addTo(map);
-            
-            if (!gminyGeoJSON) {
-                await fetchGminyData();
-            }
-            drawGminyLayer();
-            
-            // Zoom do Polski
-            map.flyTo([52.06, 19.48], 6);
-        } else {
-            gminyBtn.textContent = "GMINY POLSKA";
-            gminyBtn.style.background = "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)";
-            
-            gminyLayerGroup.remove();
-            gridLayerGroup.addTo(map);
-            squareLayerGroup.addTo(map);
-            
-            // Zoom do ostatniej pozycji lub środka
-            if (userMarker) {
-                map.flyTo(userMarker.getLatLng(), 16);
-            }
-        }
-    }
-
-    gminyBtn.addEventListener('click', toggleGminyView);
 
     function updatePosition(position) {
         const lat = position.coords.latitude;
@@ -643,8 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (hasNew) saveExplored();
             redrawAllSquares();
             
-            // Live gminy check
-            if (checkPointInGminy(lat, lng)) saveVisitedGminy();
+            // Live gminy check removed for performance
         } else {
             const squareIndex = getSquareIndex(lat, lng);
             if (isTracking) sessionSquares.add(squareIndex);
@@ -655,9 +424,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     saveExplored();
                 }
                 redrawAllSquares();
-                
-                // Live gminy check
-                if (checkPointInGminy(lat, lng)) saveVisitedGminy();
             }
         }
     }
@@ -918,18 +684,15 @@ document.addEventListener("DOMContentLoaded", () => {
     resetBtn.addEventListener('click', () => {
         if (confirm("Czy na pewno chcesz zresetować cały postęp?")) {
             exploredSquares.clear();
-            visitedGminy.clear();
             userPath.length = 0;
             pathPolyline.setLatLngs([]);
             savedRoutes.length = 0;
             currentSquare = null;
             saveExplored();
-            saveVisitedGminy();
             saveRoutes();
             localStorage.removeItem('hexplorer_strava_last_sync');
             redrawAllSquares();
             drawAllRoutes();
-            if (isGminyMode) drawGminyLayer();
             statusMsg.textContent = "Zresetowano postęp.";
         }
     });
@@ -978,9 +741,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         saveRoutes();
                         redrawAllSquares();
                         drawAllRoutes();
-                        
-                        // Przelicz gminy dla zaimportowanych tras
-                        recalculateAllActivitiesGminy();
                         
                         statusMsg.textContent = "Pomyślnie zaimportowano postęp z pliku!";
                     } else {
@@ -1392,7 +1152,4 @@ document.addEventListener("DOMContentLoaded", () => {
     redrawAllSquares();
     drawAllRoutes();
     drawBackgroundGrid();
-
-    // Pobierz gminy w tle, żeby były gotowe
-    fetchGminyData();
 });
