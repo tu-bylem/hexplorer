@@ -261,10 +261,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
         savedRoutes.forEach(routeObj => {
             const points = decodePolyline(routeObj.polyline);
-            const pl = L.polyline(points, { color: '#f97316', weight: 3, opacity: 0.6 }).addTo(routesLayerGroup);
+            // Zwiększamy weight do 5 dla lepszej klikalności, dodajemy interaktywność
+            const pl = L.polyline(points, { 
+                color: '#f97316', 
+                weight: 5, 
+                opacity: 0.6,
+                className: 'clickable-route' 
+            }).addTo(routesLayerGroup);
             
             // Zapisujemy referencję
             routePolylines[routeObj.id] = pl;
+
+            pl.on('mouseover', () => {
+                if (pl !== activePolyline) {
+                    pl.setStyle({ weight: 8, opacity: 0.9 });
+                }
+            });
+
+            pl.on('mouseout', () => {
+                if (pl !== activePolyline) {
+                    pl.setStyle({ weight: 5, opacity: 0.6 });
+                }
+            });
 
             pl.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
@@ -275,10 +293,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function selectRoute(routeObj, pl) {
         if (activePolyline) {
-            activePolyline.setStyle({ color: '#f97316', weight: 3, zIndexOffset: 0 });
+            activePolyline.setStyle({ color: '#f97316', weight: 5, opacity: 0.6, zIndexOffset: 0 });
         }
         activePolyline = pl;
-        pl.setStyle({ color: '#3b82f6', weight: 5, zIndexOffset: 100 });
+        pl.setStyle({ color: '#3b82f6', weight: 8, opacity: 1, zIndexOffset: 1000 });
         pl.bringToFront();
         
         routeDetailsName.textContent = routeObj.name;

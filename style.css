@@ -370,3 +370,8 @@ button:active {
         bottom: 150px;
     }
 }
+
+.clickable-route {
+    cursor: pointer;
+    outline: none;
+}
