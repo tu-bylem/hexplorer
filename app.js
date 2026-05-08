@@ -166,6 +166,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleUiBtn = document.getElementById('toggle-ui');
     const uiOverlay = document.getElementById('ui-overlay');
     const routePolylines = {}; // Przechowuje referencje do obiektów L.polyline po ID
+    const routeEditBtn = document.getElementById('route-edit-btn');
+    const routeDeleteBtn = document.getElementById('route-delete-btn');
+    let editingRouteId = null;
     
     toggleUiBtn.addEventListener('click', () => {
         uiOverlay.classList.toggle('minimized');
@@ -306,9 +309,68 @@ document.addEventListener("DOMContentLoaded", () => {
         routeDetailsDate.textContent = routeObj.date || '-';
         routeDetailsDistance.textContent = routeObj.distance ? (routeObj.distance / 1000).toFixed(2) : '-';
         routeDetailsPanel.classList.remove('hidden');
+        
+        // Pokazujemy przycisk edycji tylko dla planów
+        if (routeObj.source === 'Plan') {
+            routeEditBtn.style.display = 'block';
+        } else {
+            routeEditBtn.style.display = 'none';
+        }
+
+        // Akcja usuwania
+        routeDeleteBtn.onclick = () => {
+            if (confirm(`Czy na pewno chcesz usunąć trasę: ${routeObj.name}?`)) {
+                deleteRoute(routeObj.id);
+            }
+        };
+
+        // Akcja edycji
+        routeEditBtn.onclick = () => {
+            editPlannedRoute(routeObj);
+        };
 
         // Automatyczne zbliżenie do trasy
         map.fitBounds(pl.getBounds(), { padding: [50, 50] });
+    }
+    
+    function deleteRoute(routeId) {
+        // Usuwamy z tablicy danych
+        const index = savedRoutes.findIndex(r => r.id === routeId);
+        if (index !== -1) {
+            savedRoutes.splice(index, 1);
+            saveRoutes();
+        }
+
+        // Usuwamy z mapy
+        if (routePolylines[routeId]) {
+            routesLayerGroup.removeLayer(routePolylines[routeId]);
+            delete routePolylines[routeId];
+        }
+
+        // Jeśli to była aktywna polilinia, czyścimy
+        if (activePolyline === routePolylines[routeId]) {
+            activePolyline = null;
+        }
+
+        routeDetailsPanel.classList.add('hidden');
+        updateActivitiesList();
+        statusMsg.textContent = "Usunięto trasę.";
+    }
+
+    function editPlannedRoute(routeObj) {
+        const points = decodePolyline(routeObj.polyline);
+        if (points.length === 0) return;
+
+        // Przełączamy w tryb planowania
+        if (!isPlanningMode) togglePlanningMode();
+        
+        // Ładujemy punkty
+        planningPoints = [...points];
+        editingRouteId = routeObj.id;
+        
+        updatePlanningUI();
+        routeDetailsPanel.classList.add('hidden');
+        statusMsg.textContent = "Edytowanie planu: " + routeObj.name;
     }
 
     function updateActivitiesList() {
@@ -605,6 +667,7 @@ document.addEventListener("DOMContentLoaded", () => {
             planningBtn.style.background = "#8b5cf6";
             savePlanningBtn.style.display = "none";
             statusMsg.textContent = "Planowanie zakończone.";
+            editingRouteId = null; // Resetujemy ID edycji
             clearPlanning();
         }
     }
@@ -707,23 +770,43 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const name = prompt("Podaj nazwę dla zaplanowanej trasy:", "Mój plan");
-        if (!name) return;
+        let name = "Mój plan";
+        if (editingRouteId) {
+            const existing = savedRoutes.find(r => r.id === editingRouteId);
+            name = existing ? existing.name : "Mój plan";
+        }
+
+        const newName = prompt("Podaj nazwę dla zaplanowanej trasy:", name);
+        if (!newName) return;
 
         const dist = calculateTotalDistance(planningPoints);
-        savedRoutes.push({
-            id: 'plan_' + Date.now(),
-            name: name,
-            source: 'Plan',
-            distance: dist,
-            date: new Date().toLocaleDateString(),
-            polyline: encodePolyline(planningPoints)
-        });
+        const poly = encodePolyline(planningPoints);
+
+        if (editingRouteId) {
+            // Aktualizujemy istniejącą
+            const index = savedRoutes.findIndex(r => r.id === editingRouteId);
+            if (index !== -1) {
+                savedRoutes[index].name = newName;
+                savedRoutes[index].distance = dist;
+                savedRoutes[index].polyline = poly;
+            }
+        } else {
+            // Dodajemy nową
+            savedRoutes.push({
+                id: 'plan_' + Date.now(),
+                name: newName,
+                source: 'Plan',
+                distance: dist,
+                date: new Date().toLocaleDateString(),
+                polyline: poly
+            });
+        }
 
         saveRoutes();
         drawAllRoutes();
         togglePlanningMode();
-        statusMsg.textContent = "Zapisano zaplanowaną trasę.";
+        statusMsg.textContent = editingRouteId ? "Zaktualizowano plan." : "Zapisano zaplanowaną trasę.";
+        editingRouteId = null;
     }
 
     savePlanningBtn.addEventListener('click', savePlanning);
