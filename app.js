@@ -135,6 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const stravaBtn = document.getElementById('strava-btn');
     const stravaModal = document.getElementById('strava-modal');
     const stravaSaveBtn = document.getElementById('strava-save-btn');
+    const stravaCancelBtn = document.getElementById('strava-cancel-btn');
     const planningBtn = document.getElementById('planning-btn');
     let isPlanningMode = false;
     let planningPoints = [];
