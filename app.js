@@ -914,6 +914,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     planningBtn.addEventListener('click', togglePlanningMode);
+
+    resetBtn.addEventListener('click', () => {
+        if (confirm("Czy na pewno chcesz zresetować cały postęp?")) {
+            exploredSquares.clear();
+            visitedGminy.clear();
             userPath.length = 0;
             pathPolyline.setLatLngs([]);
             savedRoutes.length = 0;
