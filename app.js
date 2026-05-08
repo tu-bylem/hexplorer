@@ -995,13 +995,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     stravaBtn.addEventListener('click', () => {
+        console.log("Strava button clicked. Token:", stravaToken ? "present" : "missing", "Config:", stravaConfig ? "present" : "missing");
         if (stravaToken) {
             syncStravaActivities();
         } else if (stravaConfig) {
             const redirectUri = window.location.origin + window.location.pathname;
             const authUrl = `https://www.strava.com/oauth/authorize?client_id=${stravaConfig.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=auto&scope=activity:read_all`;
+            console.log("Redirecting to Strava:", authUrl);
             window.location.href = authUrl;
         } else {
+            console.log("Showing Strava modal");
             stravaModal.style.display = 'flex';
         }
     });
@@ -1090,6 +1093,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function syncStravaActivities() {
+        console.log("Syncing Strava activities...");
         statusMsg.textContent = "Pobieranie aktywności ze Stravy...";
         const isValid = await checkStravaToken();
         if (!isValid) {
