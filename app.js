@@ -142,6 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const planningMarkersGroup = L.layerGroup().addTo(map);
     const planningPreviewGroup = L.layerGroup().addTo(map);
     const planningPolyline = L.polyline([], { color: '#8b5cf6', weight: 4, dashArray: '10, 10', opacity: 0.8 }).addTo(map);
+    const savePlanningBtn = document.getElementById('save-planning-btn');
     const stravaClientIdInput = document.getElementById('strava-client-id');
     const stravaClientSecretInput = document.getElementById('strava-client-secret');
 
@@ -595,12 +596,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function togglePlanningMode() {
         isPlanningMode = !isPlanningMode;
         if (isPlanningMode) {
-            planningBtn.textContent = "Zakończ planowanie";
-            planningBtn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
+            planningBtn.textContent = "Anuluj planowanie";
+            planningBtn.style.background = "#ef4444"; // Red for cancel
+            savePlanningBtn.style.display = "block";
             statusMsg.textContent = "Klikaj na mapie, aby dodawać punkty trasy. Przeciągaj punkty, by je przesunąć.";
         } else {
             planningBtn.textContent = "Zaplanuj trasę";
             planningBtn.style.background = "#8b5cf6";
+            savePlanningBtn.style.display = "none";
             statusMsg.textContent = "Planowanie zakończone.";
             clearPlanning();
         }
@@ -698,6 +701,32 @@ document.addEventListener("DOMContentLoaded", () => {
         planningPolyline.setLatLngs([]);
     }
 
+    function savePlanning() {
+        if (planningPoints.length < 2) {
+            alert("Dodaj przynajmniej dwa punkty, aby zapisać trasę.");
+            return;
+        }
+
+        const name = prompt("Podaj nazwę dla zaplanowanej trasy:", "Mój plan");
+        if (!name) return;
+
+        const dist = calculateTotalDistance(planningPoints);
+        savedRoutes.push({
+            id: 'plan_' + Date.now(),
+            name: name,
+            source: 'Plan',
+            distance: dist,
+            date: new Date().toLocaleDateString(),
+            polyline: encodePolyline(planningPoints)
+        });
+
+        saveRoutes();
+        drawAllRoutes();
+        togglePlanningMode();
+        statusMsg.textContent = "Zapisano zaplanowaną trasę.";
+    }
+
+    savePlanningBtn.addEventListener('click', savePlanning);
     planningBtn.addEventListener('click', togglePlanningMode);
 
     resetBtn.addEventListener('click', () => {
