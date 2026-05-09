@@ -46,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let isPaused = false;
     let watchId = null;
     let currentSquare = null;
+    let userMarker = null;
 
     // Wczytanie z localStorage
     const exploredSquares = new Set(JSON.parse(localStorage.getItem('hexplorer_explored_squares') || '[]'));
