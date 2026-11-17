@@ -1149,7 +1149,9 @@ document.addEventListener("DOMContentLoaded", () => {
         statusMsg.textContent = "Autoryzacja Strava w toku...";
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        fetch('https://www.strava.com/oauth/token', {
+        // Używamy proxy CORS, bo Strava blokuje bezpośrednie żądania z przeglądarki
+        const CORS_PROXY = 'https://corsproxy.io/?url=';
+        fetch(CORS_PROXY + encodeURIComponent('https://www.strava.com/oauth/token'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1167,11 +1169,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     updateStravaBtnState();
                     syncStravaActivities();
                 } else {
-                    statusMsg.textContent = "Błąd autoryzacji Strava. Sprawdź poprawność kluczy API.";
+                    console.error('Strava auth error:', data);
+                    statusMsg.textContent = "Błąd autoryzacji Strava. Sprawdź poprawność kluczy API i domenę callback.";
                 }
             })
             .catch(err => {
-                statusMsg.textContent = "Błąd połączenia ze Stravą.";
+                statusMsg.textContent = "Błąd połączenia ze Stravą (CORS proxy).";
                 console.error(err);
             });
     }
@@ -1181,7 +1184,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const now = Math.floor(Date.now() / 1000);
         if (stravaToken.expires_at && stravaToken.expires_at < now) {
             try {
-                const res = await fetch('https://www.strava.com/oauth/token', {
+                const CORS_PROXY = 'https://corsproxy.io/?url=';
+                const res = await fetch(CORS_PROXY + encodeURIComponent('https://www.strava.com/oauth/token'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
