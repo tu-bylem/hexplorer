@@ -1143,25 +1143,56 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // --- Proxy CORS dla Strava OAuth (wymiana kodu/odświeżanie tokenu) ---
+    // Strava blokuje bezpośrednie żądania z przeglądarki, używamy listy proxy jako fallback
+    const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
+    const CORS_PROXIES = [
+        url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+        url => `https://proxy.cors.sh/${url}`,
+        url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ];
+
+    async function stravaTokenRequest(params) {
+        const body = new URLSearchParams(params).toString();
+        let lastError = null;
+        for (const makeProxyUrl of CORS_PROXIES) {
+            try {
+                const proxyUrl = makeProxyUrl(STRAVA_TOKEN_URL);
+                console.log('Trying proxy:', proxyUrl);
+                const res = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body
+                });
+                if (!res.ok) {
+                    console.warn('Proxy returned', res.status);
+                    continue;
+                }
+                const data = await res.json();
+                return data;
+            } catch (e) {
+                console.warn('Proxy failed:', e.message);
+                lastError = e;
+            }
+        }
+        throw lastError || new Error('Wszystkie proxy CORS zawiodły');
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     if (code && stravaConfig) {
         statusMsg.textContent = "Autoryzacja Strava w toku...";
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        // Używamy proxy CORS, bo Strava blokuje bezpośrednie żądania z przeglądarki
-        const CORS_PROXY = 'https://corsproxy.io/?url=';
-        fetch(CORS_PROXY + encodeURIComponent('https://www.strava.com/oauth/token'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                client_id: stravaConfig.clientId,
-                client_secret: stravaConfig.clientSecret,
-                code: code,
-                grant_type: 'authorization_code'
-            })
+        stravaTokenRequest({
+            client_id: stravaConfig.clientId,
+            client_secret: stravaConfig.clientSecret,
+            code: code,
+            grant_type: 'authorization_code'
         })
-            .then(res => res.json())
             .then(data => {
                 if (data.access_token) {
                     stravaToken = data;
@@ -1170,11 +1201,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     syncStravaActivities();
                 } else {
                     console.error('Strava auth error:', data);
-                    statusMsg.textContent = "Błąd autoryzacji Strava. Sprawdź poprawność kluczy API i domenę callback.";
+                    statusMsg.textContent = `Błąd Strava: ${data.message || 'Sprawdź Client ID, Secret i domenę callback (tu-bylem.github.io)'}`;
                 }
             })
             .catch(err => {
-                statusMsg.textContent = "Błąd połączenia ze Stravą (CORS proxy).";
+                statusMsg.textContent = "Błąd połączenia ze Stravą – wszystkie proxy CORS zawiodły.";
                 console.error(err);
             });
     }
@@ -1184,25 +1215,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const now = Math.floor(Date.now() / 1000);
         if (stravaToken.expires_at && stravaToken.expires_at < now) {
             try {
-                const CORS_PROXY = 'https://corsproxy.io/?url=';
-                const res = await fetch(CORS_PROXY + encodeURIComponent('https://www.strava.com/oauth/token'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        client_id: stravaConfig.clientId,
-                        client_secret: stravaConfig.clientSecret,
-                        refresh_token: stravaToken.refresh_token,
-                        grant_type: 'refresh_token'
-                    })
+                const data = await stravaTokenRequest({
+                    client_id: stravaConfig.clientId,
+                    client_secret: stravaConfig.clientSecret,
+                    refresh_token: stravaToken.refresh_token,
+                    grant_type: 'refresh_token'
                 });
-                const data = await res.json();
                 if (data.access_token) {
                     stravaToken = data;
                     localStorage.setItem('hexplorer_strava_token', JSON.stringify(data));
                     return true;
-                } else {
-                    return false;
                 }
+                return false;
             } catch (e) {
                 return false;
             }
