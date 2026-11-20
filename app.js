@@ -1143,38 +1143,50 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- Proxy CORS dla Strava OAuth (wymiana kodu/odświeżanie tokenu) ---
-    // Strava blokuje bezpośrednie żądania z przeglądarki — używamy kilku publicznych proxy POST jako fallback
+    // --- Proxy dla Strava OAuth token exchange ---
+    // Na Netlify: używamy własnej serverless function (/.netlify/functions/strava-token)
+    // Na GitHub Pages lub lokalnie: próbujemy publicznych proxy CORS
     const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
-    // Tylko proxy obsługujące metodę POST z body:
-    const CORS_PROXIES = [
-        url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-        url => `https://thingproxy.freeboard.io/fetch/${url}`,
-        url => `https://corsproxy.io/?url=${url}`,  // bez kodowania jako fallback
-    ];
+
+    function getStravaProxyUrl() {
+        const host = window.location.hostname;
+        if (host.includes('netlify.app') || host.includes('netlify.com')) {
+            return '/.netlify/functions/strava-token';
+        }
+        return null; // użyj proxy CORS poniżej
+    }
 
     async function stravaTokenRequest(params) {
         const body = new URLSearchParams(params).toString();
+
+        // 1. Spróbuj Netlify function (niezawodne)
+        const netlifyUrl = getStravaProxyUrl();
+        if (netlifyUrl) {
+            const res = await fetch(netlifyUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
+            return await res.json();
+        }
+
+        // 2. Fallback: publiczne proxy CORS (dla GitHub Pages)
+        const CORS_PROXIES = [
+            `https://corsproxy.io/?url=${encodeURIComponent(STRAVA_TOKEN_URL)}`,
+            `https://thingproxy.freeboard.io/fetch/${STRAVA_TOKEN_URL}`,
+        ];
+
         let lastError = null;
-        for (const makeProxyUrl of CORS_PROXIES) {
+        for (const proxyUrl of CORS_PROXIES) {
             try {
-                const proxyUrl = makeProxyUrl(STRAVA_TOKEN_URL);
                 console.log('Trying Strava proxy:', proxyUrl);
                 const res = await fetch(proxyUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: body
                 });
-                if (!res.ok) {
-                    console.warn('Proxy HTTP error:', res.status);
-                    continue;
-                }
-                const data = await res.json();
-                if (data.errors || data.message === 'Authorization Error') {
-                    // Strava zwróciło błąd autoryzacji — nie próbuj dalej
-                    return data;
-                }
-                return data;
+                if (!res.ok) { console.warn('Proxy HTTP error:', res.status); continue; }
+                return await res.json();
             } catch (e) {
                 console.warn('Proxy failed:', e.message);
                 lastError = e;
