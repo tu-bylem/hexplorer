@@ -1144,12 +1144,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // --- Proxy CORS dla Strava OAuth (wymiana kodu/odświeżanie tokenu) ---
-    // Strava blokuje bezpośrednie żądania z przeglądarki, używamy listy proxy jako fallback
+    // Strava blokuje bezpośrednie żądania z przeglądarki — używamy kilku publicznych proxy POST jako fallback
     const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
+    // Tylko proxy obsługujące metodę POST z body:
     const CORS_PROXIES = [
         url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-        url => `https://proxy.cors.sh/${url}`,
-        url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        url => `https://thingproxy.freeboard.io/fetch/${url}`,
+        url => `https://corsproxy.io/?url=${url}`,  // bez kodowania jako fallback
     ];
 
     async function stravaTokenRequest(params) {
@@ -1158,20 +1159,21 @@ document.addEventListener("DOMContentLoaded", () => {
         for (const makeProxyUrl of CORS_PROXIES) {
             try {
                 const proxyUrl = makeProxyUrl(STRAVA_TOKEN_URL);
-                console.log('Trying proxy:', proxyUrl);
+                console.log('Trying Strava proxy:', proxyUrl);
                 const res = await fetch(proxyUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: body
                 });
                 if (!res.ok) {
-                    console.warn('Proxy returned', res.status);
+                    console.warn('Proxy HTTP error:', res.status);
                     continue;
                 }
                 const data = await res.json();
+                if (data.errors || data.message === 'Authorization Error') {
+                    // Strava zwróciło błąd autoryzacji — nie próbuj dalej
+                    return data;
+                }
                 return data;
             } catch (e) {
                 console.warn('Proxy failed:', e.message);
